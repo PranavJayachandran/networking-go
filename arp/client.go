@@ -12,43 +12,47 @@ import (
 )
 
 // Should broadcast a address call to all the servers in the network, in this case all the ports between 8000 to 8005
-func findAddress(name string)(string, bool){
+func findAddress(name string) (string, bool) {
+	value, exists := NameAddressCache[name]
+	if exists && value.Timeout.After(time.Now()) {
+		return value.Value, true
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	msg := ArpMessage{
-		RequestType: ArpRequest,
-		SenderAddr: fmt.Sprintf("http://localhost%s", Port),
-		SenderName: Name,
+		RequestType:  ArpRequest,
+		SenderAddr:   fmt.Sprintf("http://localhost%s", Port),
+		SenderName:   Name,
 		RecieverAddr: "",
 		RecieverName: name,
 	}
 
 	resultCh := make(chan string, 1)
 
-	for port := 8001; port <= 8001; port++{
-		go func(p int){
+	for port := 8000; port <= 8005; port++ {
+		go func(p int) {
 			url := fmt.Sprintf("http://localhost:%d/arp", p)
 			jsonData, err := json.Marshal(msg)
-			if IsError(err){
+			if IsError(err) {
 				return
 			}
 
-			req, err := http.NewRequestWithContext(ctx,"POST", url,bytes.NewBuffer(jsonData))
+			req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 
-			if IsError(err){
-				return 
+			if IsError(err) {
+				return
 			}
 
 			resp, err := http.DefaultClient.Do(req)
-			if IsError(err){
+			if IsError(err) {
 				return
 			}
 
 			defer resp.Body.Close()
 
-			if resp.StatusCode == http.StatusOK{
+			if resp.StatusCode == http.StatusOK {
 				body, _ := io.ReadAll(resp.Body)
-				fmt.Print(string(body))
 				var message = &ArpMessage{}
 				_ = json.Unmarshal(body, message)
 				select {
@@ -62,28 +66,33 @@ func findAddress(name string)(string, bool){
 
 	select {
 	case addr := <-resultCh:
+		var toCacheValue = Cache{
+			Value:   addr,
+			Timeout: time.Now().Add(Timeout),
+		}
+		NameAddressCache[name] = toCacheValue
 		return addr, true
-	case <-time.After(2*time.Second):
+	case <-time.After(2 * time.Second):
 		return "", false
 	}
 }
 
-func SendMessage(message Message) bool{
+func SendMessage(message Message) bool {
 	addr, hasFound := findAddress(message.Name)
 	if !hasFound {
-		return false 
+		return false
 	}
 	client := http.Client{Timeout: 1 * time.Second}
 	data := message.Message
-	req, err := http.NewRequest("POST", addr + "/msg", strings.NewReader(data))
+	req, err := http.NewRequest("POST", addr+"/msg", strings.NewReader(data))
 	_, err = client.Do(req)
-	if IsError(err){
+	if IsError(err) {
 		return false
 	}
 	return true
 }
 
-func ReplyArpRequest(request *ArpMessage) ArpMessage{
+func ReplyArpRequest(request *ArpMessage) ArpMessage {
 	var reply ArpMessage
 	reply.SenderAddr = fmt.Sprintf("http://localhost%s", Port)
 	reply.RecieverAddr = request.SenderAddr

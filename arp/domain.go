@@ -1,5 +1,7 @@
 package main
 
+import "time"
+
 type RequestType int 
 
 const (
@@ -18,4 +20,9 @@ type ArpMessage struct {
 	RecieverAddr string
 	SenderName string
 	RecieverName string
+}
+
+type Cache struct {
+	Value string
+	Timeout time.Time
 }

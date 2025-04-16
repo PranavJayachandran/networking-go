@@ -4,15 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
+	"strconv"
 )
 
 func msgHandler(w http.ResponseWriter, r *http.Request){
 	body, err := io.ReadAll(r.Body)
+	fmt.Print(string(body))
 	if err != nil {
 		fmt.Println("Error reading the message")
 	}
-	fmt.Print(string(body))
 	io.WriteString(w, "Message Recived")
 }
 func sendMsgHandler(w http.ResponseWriter, r *http.Request){
@@ -23,9 +25,11 @@ func sendMsgHandler(w http.ResponseWriter, r *http.Request){
 
 	var msg = &Message{}
 	err = json.Unmarshal(body,msg)
-	fmt.Print(msg.Message)
-	SendMessage(*msg)
-	io.WriteString(w, "Hello")
+	if !SendMessage(*msg){
+		w.WriteHeader(http.StatusBadGateway)
+		return 
+	}
+	io.WriteString(w, "Sent Successfully")
 }
 
 func arpHandler(w http.ResponseWriter, r *http.Request){
@@ -49,8 +53,7 @@ func arpHandler(w http.ResponseWriter, r *http.Request){
 
 func ServerInit(){
 	for {
-		//port := ":" + strconv.Itoa(rand.Intn(5) + 8000)
-		Port = ":8001"
+		Port = ":" + strconv.Itoa(rand.Intn(5) + 8000)
 		fmt.Printf("Trying to start a server at %s", Port)
 		http.HandleFunc("/sendmsg", sendMsgHandler)
 		http.HandleFunc("/msg", msgHandler)
